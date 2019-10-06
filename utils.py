@@ -31,7 +31,7 @@ def combine_vertical(upper, lower, delta, patch):
                               patch=patch)
 
 
-def get_scores(image, model, delta, patch, combine):
+def get_predicts(image, model, delta, patch, combine):
     patches = list(generate_patches(image=image, patch=patch))
     hors = []
     for i in range(len(patches)):
@@ -44,17 +44,17 @@ def get_scores(image, model, delta, patch, combine):
     return scores.reshape((len(patches), len(patches)))
 
 
-def get_horizontal_scores(image, model, delta, patch):
-    return get_scores(image=image,
-                      model=model,
-                      delta=delta,
-                      patch=patch,
-                      combine=combine_horizontal)
+def get_horizontal_predicts(image, model, delta, patch):
+    return get_predicts(image=image,
+                        model=model,
+                        delta=delta,
+                        patch=patch,
+                        combine=combine_horizontal)
 
 
-def get_vertical_scores(image, model, delta, patch):
-    return get_scores(image=image,
-                      model=model,
-                      delta=delta,
-                      patch=patch,
-                      combine=combine_vertical)
+def get_vertical_predicts(image, model, delta, patch):
+    return get_predicts(image=image,
+                        model=model,
+                        delta=delta,
+                        patch=patch,
+                        combine=combine_vertical)

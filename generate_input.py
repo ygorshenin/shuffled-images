@@ -2,18 +2,39 @@
 
 from PIL import Image
 from keras.models import load_model
-from utils import SIZE, get_horizontal_scores, get_vertical_scores
+from utils import SIZE, get_horizontal_predicts, get_vertical_predicts
 
 import argparse
+import glob
+import os
 
 
 def generate_input(image, model, delta, patch):
-    return get_horizontal_scores(image, model, delta, patch), get_vertical_scores(image, model, delta, patch)
+    hors = get_horizontal_predicts(image, model, delta, patch)
+    vers = get_vertical_predicts(image, model, delta, patch)
+    return hors, vers
 
 
-def print_2d_array(array):
+def print_1d_array(array, file):
+    print(' '.join(map(lambda x: '{:.6}'.format(x), array)), file=file)
+
+
+def print_2d_array(array, file):
     for i in range(len(array)):
-        print(' '.join(map(lambda x: '{:.6}'.format(x), array[i])))
+        print_1d_array(array[i], file=file)
+
+
+def load_answers(answers_path):
+    answers = {}
+    with open(answers_path, 'r') as f:
+        lines = f.readlines()
+        assert len(lines) % 2 == 0
+        for i in range(0, len(lines), 2):
+            name = lines[i].strip()
+            permutation = list(map(int, lines[i + 1].split()))
+            answers[name] = permutation
+    return answers
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -25,24 +46,35 @@ if __name__ == '__main__':
                         type=int,
                         default=8,
                         help='Size of the image delta')
-    parser.add_argument('--image',
+    parser.add_argument('--data',
                         type=str,
-                        default='data/data_train/16-sources/0010.png',
-                        help='Path to the image')
+                        default='data/data_train/64',
+                        help='Path to the train data')
+    parser.add_argument('--answers',
+                        type=str,
+                        default='data/data_train/data_train_64_answers.txt',
+                        help='Path to the train data answers')
     parser.add_argument('--model',
                         type=str,
                         default='model.h5',
                         help='Path to the model')
     args = parser.parse_args()
 
-    image = Image.open(args.image).convert('L')
     model = load_model(args.model)
+    answers = load_answers(answers_path=args.answers)
 
-    hors, vers = generate_input(image=image,
-                                model=model,
-                                delta=args.delta,
-                                patch=args.patch)
+    for file in glob.glob(os.path.join(args.data, '*.png')):
+        print('Processing {}...'.format(file))
+        name = os.path.basename(file)
+        
+        image = Image.open(file).convert('L')
+        hors, vers = generate_input(image=image,
+                                    model=model,
+                                    delta=args.delta,
+                                    patch=args.patch)
 
-    print(SIZE // args.patch)
-    print_2d_array(hors)
-    print_2d_array(vers)
+        with open(file + 'txt', 'w') as f:
+            print(SIZE // args.patch, file=f)
+            print_2d_array(hors, file=f)
+            print_2d_array(vers, file=f)
+            print(' '.join(map(str, answers[name])), file=f)
