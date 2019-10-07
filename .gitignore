@@ -3,4 +3,4 @@ __pycache__
 data
 model.h5
 *~
-*.txt
+build
