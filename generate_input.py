@@ -73,7 +73,7 @@ if __name__ == '__main__':
                                     delta=args.delta,
                                     patch=args.patch)
 
-        with open(file + 'txt', 'w') as f:
+        with open(file + '.txt', 'w') as f:
             print(SIZE // args.patch, file=f)
             print_2d_array(hors, file=f)
             print_2d_array(vers, file=f)
