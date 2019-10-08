@@ -7,7 +7,11 @@
 #include <random>
 #include <utility>
 #include <vector>
+
+#include <gflags/gflags.h>
 using namespace std;
+
+DEFINE_bool(has_answer, false, "When true, Solver will assume that exact answer is provided");
 
 enum class Where { Up, Down, Left, Right };
 const int kNumDirs = 4;
@@ -33,7 +37,6 @@ ostream& operator<<(ostream& os, const vector<T>& vs) {
 struct Context {
   vector<vector<double>> m_hpreds;
   vector<vector<double>> m_vpreds;
-  vector<int> m_permutation;
   int m_size = 0;
   int m_total = 0;
 };
@@ -96,11 +99,7 @@ double GetScore(int size, const vector<int>& expected, const vector<int>& actual
 
 struct Piece {
   Piece() = default;
-  Piece(int row, int col, int piece)
-    : m_row(row)
-    , m_col(col)
-    , m_piece(piece) {
-  }
+  Piece(int row, int col, int piece) : m_row(row), m_col(col), m_piece(piece) {}
 
   int m_row = 0;
   int m_col = 0;
@@ -109,10 +108,7 @@ struct Piece {
 
 struct Cell {
   Cell() = default;
-  Cell(int row, int col)
-    : m_row(row)
-    , m_col(col) {
-  }
+  Cell(int row, int col) : m_row(row), m_col(col) {}
 
   int m_row = 0;
   int m_col = 0;
@@ -121,11 +117,7 @@ struct Cell {
 struct BoundingBox {
   BoundingBox() = default;
   BoundingBox(int minRow, int minCol, int maxRow, int maxCol)
-    : m_minRow(minRow)
-    , m_minCol(minCol)
-    , m_maxRow(maxRow)
-    , m_maxCol(maxCol) {
-  }
+      : m_minRow(minRow), m_minCol(minCol), m_maxRow(maxRow), m_maxCol(maxCol) {}
 
   int NumRows() const {
     assert(m_minRow <= m_maxRow);
@@ -208,10 +200,7 @@ struct Solution {
   Solution() = default;
 
   template <typename P>
-  Solution(P&& permutation, double score)
-    : m_permutation(std::forward<P>(permutation))
-    , m_score(score) {
-  }
+  Solution(P&& permutation, double score) : m_permutation(std::forward<P>(permutation)), m_score(score) {}
 
   vector<int> m_permutation;
   double m_score = 0;
@@ -310,7 +299,9 @@ vector<int> Solve(const Context& ctx) {
   return best.m_permutation;
 }
 
-int main() {
+int main(int argc, char** argv) {
+  gflags::ParseCommandLineFlags(&argc, &argv, /* remove_flags= */ true);
+
   ios_base::sync_with_stdio(false);
 
   Context ctx;
@@ -337,29 +328,35 @@ int main() {
   cerr << "Total sum of preds: " << total << endl;
   cerr << "Best possible score: " << total / (2 * ctx.m_size * (ctx.m_size - 1)) << endl;
 
-  ctx.m_permutation.assign(ctx.m_total, 0);
-  for (int i = 0; i < ctx.m_total; ++i)
-    cin >> ctx.m_permutation[i];
+  vector<int> expected;
+  if (FLAGS_has_answer) {
+    expected.assign(ctx.m_total, 0);
+    for (int i = 0; i < ctx.m_total; ++i)
+      cin >> expected[i];
+  }
 
-  const auto result = Solve(ctx);
-  if (result.size() != ctx.m_total) {
-    cerr << "Wrong result size: expected " << ctx.m_total << ", actual: " << result.size() << endl;
-    cerr << "Result permutation: " << result << endl;
+  const auto actual = Solve(ctx);
+  if (actual.size() != ctx.m_total) {
+    cerr << "Wrong result size: expected " << ctx.m_total << ", actual: " << actual.size() << endl;
+    cerr << "Result permutation: " << actual << endl;
     exit(EXIT_FAILURE);
   }
   vector<bool> used(ctx.m_total);
-  for (const auto& r : result) {
-    if (r < 0 || r >= ctx.m_total) {
-      cerr << "Incorrect value " << r << " in result permutation: " << result;
+  for (const auto& p : actual) {
+    if (p < 0 || p >= ctx.m_total) {
+      cerr << "Incorrect value " << p << " in result permutation: " << actual;
       exit(EXIT_FAILURE);
     }
-    if (used[r]) {
-      cerr << "Duplicate value " << r << " in result permutation: " << result;
+    if (used[p]) {
+      cerr << "Duplicate value " << p << " in result permutation: " << actual;
       exit(EXIT_FAILURE);
     }
+    used[p] = true;
   }
 
-  cerr << "Result score: " << GetScore(ctx.m_size, /* expected= */ ctx.m_permutation, /* actual= */ result) << endl;
-  cout << result << endl;
+  if (FLAGS_has_answer)
+    cerr << "Result score: " << GetScore(ctx.m_size, expected, actual) << endl;
+
+  cout << actual << endl;
   exit(EXIT_SUCCESS);
 }

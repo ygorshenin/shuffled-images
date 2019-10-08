@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.6)
 
 project(Solver)
 
+find_package(gflags REQUIRED)
+
 option(USE_PPROF OFF)
 option(USE_ASAN OFF)
 
@@ -18,6 +20,7 @@ if (USE_ASAN)
 endif()
 
 add_executable(${PROJECT_NAME} ${PROJECT_NAME}.cpp)
+target_link_libraries(${PROJECT_NAME} gflags)
 
 if (USE_PPROF)
   target_link_libraries(${PROJECT_NAME} "-lprofiler")

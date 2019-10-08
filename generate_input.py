@@ -52,7 +52,7 @@ if __name__ == '__main__':
                         help='Path to the train data')
     parser.add_argument('--answers',
                         type=str,
-                        default='data/data_train/data_train_64_answers.txt',
+                        default=None,
                         help='Path to the train data answers')
     parser.add_argument('--model',
                         type=str,
@@ -61,7 +61,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     model = load_model(args.model)
-    answers = load_answers(answers_path=args.answers)
+    if args.answers:
+        answers = load_answers(answers_path=args.answers)
+    else:
+        answers = {}
 
     for file in glob.glob(os.path.join(args.data, '*.png')):
         print('Processing {}...'.format(file))
@@ -77,4 +80,5 @@ if __name__ == '__main__':
             print(SIZE // args.patch, file=f)
             print_2d_array(hors, file=f)
             print_2d_array(vers, file=f)
-            print(' '.join(map(str, answers[name])), file=f)
+            if answers:
+                print(' '.join(map(str, answers[name])), file=f)
