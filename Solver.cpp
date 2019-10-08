@@ -238,12 +238,10 @@ Solution HillClimbing(const Context& ctx) {
 
   markUsed(Cell(ctx.m_size, ctx.m_size), avail[0]);
   double totalScore = 0;
-  int totalEdges = 0;
 
   for (int i = 1; i < ctx.m_total; ++i) {
     Cell bestCell;
     double bestScore = -1;
-    int bestEdges = 1;
     int bestP = -1;
 
     vector<Cell> cells;
@@ -256,21 +254,23 @@ Solution HillClimbing(const Context& ctx) {
       for (const auto& p : avail) {
         assert(field[cell.m_row][cell.m_col] == kFreeCell);
         double score = 0;
-        int edges = 0;
+        int matched = 0;
+        int total = 0;
         for (int k = 0; k < kNumDirs; ++k) {
           const auto r = cell.m_row + kDRow[k];
           const auto c = cell.m_col + kDCol[k];
           if (IsValid(field, r, c) && field[r][c] != kFreeCell) {
             const auto q = field[r][c];
-            score += GetPredict(q, p, kDirs[k], ctx);
-            ++edges;
+            const auto predict = GetPredict(q, p, kDirs[k], ctx);
+            score += predict;
+            if (predict > 0.5)
+              ++matched;
+            ++total;
           }
         }
 
-        if (bestScore < 0 ||
-            (totalScore + bestScore) / (totalEdges + bestEdges) < (totalScore + score) / (totalEdges + edges)) {
-          bestScore = score;
-          bestEdges = edges;
+        if (bestScore < score * matched / total) {
+          bestScore = score * matched / total;
           bestCell = cell;
           bestP = p;
         }
@@ -282,7 +282,6 @@ Solution HillClimbing(const Context& ctx) {
     markUsed(bestCell, bestP);
 
     totalScore += bestScore;
-    totalEdges += bestEdges;
   }
 
   assert(avail.empty());
@@ -296,6 +295,7 @@ Solution HillClimbing(const Context& ctx) {
     }
   }
 
+  const auto totalEdges = 2 * ctx.m_size * (ctx.m_size - 1);
   return Solution{std::move(result), totalScore / totalEdges};
 }
 
@@ -319,15 +319,23 @@ int main() {
   ctx.m_total = ctx.m_size * ctx.m_size;
 
   ctx.m_hpreds.assign(ctx.m_total, vector<double>(ctx.m_total));
+  double total = 0;
   for (int i = 0; i < ctx.m_total; ++i) {
-    for (int j = 0; j < ctx.m_total; ++j)
+    for (int j = 0; j < ctx.m_total; ++j) {
       cin >> ctx.m_hpreds[i][j];
+      total += ctx.m_hpreds[i][j];
+    }
   }
   ctx.m_vpreds.assign(ctx.m_total, vector<double>(ctx.m_total));
   for (int i = 0; i < ctx.m_total; ++i) {
-    for (int j = 0; j < ctx.m_total; ++j)
+    for (int j = 0; j < ctx.m_total; ++j) {
       cin >> ctx.m_vpreds[i][j];
+      total += ctx.m_vpreds[i][j];
+    }
   }
+
+  cerr << "Total sum of preds: " << total << endl;
+  cerr << "Best possible score: " << total / (2 * ctx.m_size * (ctx.m_size - 1)) << endl;
 
   ctx.m_permutation.assign(ctx.m_total, 0);
   for (int i = 0; i < ctx.m_total; ++i)
