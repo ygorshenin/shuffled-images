@@ -68,9 +68,8 @@ def generate_data(data_dir, delta, patch):
     return xs, ys
 
 
-def create_model(delta, patch):
+def create_model(delta, patch, drop_rate):
     input_shape = (patch, 2 * delta, 1)
-    drop_rate = 0.25
 
     model = Sequential()
 
@@ -97,12 +96,12 @@ def create_model(delta, patch):
     return model
 
 
-def go(data_dir, model_path, delta, patch):
+def go(data_dir, model_path, delta, patch, drop_rate):
     Xs, ys = generate_data(data_dir, delta, patch)
     Xs_train, Xs_test, ys_train, ys_test = train_test_split(Xs, ys,
                                                             test_size=0.2,
                                                             random_state=42)
-    model = create_model(delta, patch)
+    model = create_model(delta, patch, drop_rate)
 
     callbacks = [
         ModelCheckpoint(model_path,
@@ -138,9 +137,14 @@ if __name__ == '__main__':
                         type=str,
                         default='model.h5',
                         help='Path for the model to save')
+    parser.add_argument('--drop-rate',
+                        type=float,
+                        default=0.25,
+                        help='Drop rate for the data')
     args = parser.parse_args()
 
     go(data_dir=args.data,
        model_path=args.model,
        delta=args.delta,
-       patch=args.patch)
+       patch=args.patch,
+       drop_rate=args.drop_rate)
