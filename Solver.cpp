@@ -1,17 +1,20 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <fstream>
+#include <functional>
 #include <iomanip>
 #include <iostream>
 #include <numeric>
 #include <random>
-#include <utility>
+#include <thread>
 #include <vector>
 
 #include <gflags/gflags.h>
 using namespace std;
 
 DEFINE_bool(has_answer, false, "When true, Solver will assume that exact answer is provided");
+DEFINE_int32(num_threads, 8, "Number of threads");
 
 enum class Where { Up, Down, Left, Right };
 const int kNumDirs = 4;
@@ -40,6 +43,24 @@ struct Context {
   int m_size = 0;
   int m_total = 0;
 };
+
+istream& operator>>(istream& is, Context& ctx) {
+  is >> ctx.m_size;
+  ctx.m_total = ctx.m_size * ctx.m_size;
+
+  ctx.m_hpreds.assign(ctx.m_total, vector<double>(ctx.m_total));
+  for (int i = 0; i < ctx.m_total; ++i) {
+    for (int j = 0; j < ctx.m_total; ++j)
+      is >> ctx.m_hpreds[i][j];
+  }
+  ctx.m_vpreds.assign(ctx.m_total, vector<double>(ctx.m_total));
+  for (int i = 0; i < ctx.m_total; ++i) {
+    for (int j = 0; j < ctx.m_total; ++j)
+      is >> ctx.m_vpreds[i][j];
+  }
+
+  return is;
+}
 
 template <typename T>
 void SortUnique(vector<T>& vs) {
@@ -288,6 +309,30 @@ Solution HillClimbing(const Context& ctx) {
   return Solution{std::move(result), totalScore / totalEdges};
 }
 
+bool CheckSolution(const Context& ctx, const vector<int>& actual) {
+  vector<bool> used(ctx.m_total);
+
+  if (actual.size() != ctx.m_total) {
+    cerr << "Wrong result size: expected " << ctx.m_total << ", actual: " << actual.size()
+         << " for result permutation: " << actual;
+    return false;
+  }
+
+  for (const auto& p : actual) {
+    if (p < 0 || p >= ctx.m_total) {
+      cerr << "Incorrect value " << p << " in result permutation: " << actual;
+      return false;
+    }
+    if (used[p]) {
+      cerr << "Duplicate value " << p << " in result permutation: " << actual;
+      return false;
+    }
+    used[p] = true;
+  }
+
+  return true;
+}
+
 vector<int> Solve(const Context& ctx) {
   Solution best = HillClimbing(ctx);
   for (int i = 0; i < 10000; ++i) {
@@ -299,64 +344,57 @@ vector<int> Solve(const Context& ctx) {
   return best.m_permutation;
 }
 
-int main(int argc, char** argv) {
-  gflags::ParseCommandLineFlags(&argc, &argv, /* remove_flags= */ true);
-
-  ios_base::sync_with_stdio(false);
-
+vector<int> Solve(istream& is, const string& tag) {
   Context ctx;
-  cin >> ctx.m_size;
-
-  ctx.m_total = ctx.m_size * ctx.m_size;
-
-  ctx.m_hpreds.assign(ctx.m_total, vector<double>(ctx.m_total));
-  double total = 0;
-  for (int i = 0; i < ctx.m_total; ++i) {
-    for (int j = 0; j < ctx.m_total; ++j) {
-      cin >> ctx.m_hpreds[i][j];
-      total += ctx.m_hpreds[i][j];
-    }
-  }
-  ctx.m_vpreds.assign(ctx.m_total, vector<double>(ctx.m_total));
-  for (int i = 0; i < ctx.m_total; ++i) {
-    for (int j = 0; j < ctx.m_total; ++j) {
-      cin >> ctx.m_vpreds[i][j];
-      total += ctx.m_vpreds[i][j];
-    }
-  }
-
-  cerr << "Total sum of preds: " << total << endl;
-  cerr << "Best possible score: " << total / (2 * ctx.m_size * (ctx.m_size - 1)) << endl;
+  is >> ctx;
 
   vector<int> expected;
   if (FLAGS_has_answer) {
     expected.assign(ctx.m_total, 0);
     for (int i = 0; i < ctx.m_total; ++i)
-      cin >> expected[i];
+      is >> expected[i];
   }
 
   const auto actual = Solve(ctx);
-  if (actual.size() != ctx.m_total) {
-    cerr << "Wrong result size: expected " << ctx.m_total << ", actual: " << actual.size() << endl;
-    cerr << "Result permutation: " << actual << endl;
+  if (!CheckSolution(ctx, actual)) {
+    cerr << tag << ": solution check failed, exiting..." << endl;
     exit(EXIT_FAILURE);
-  }
-  vector<bool> used(ctx.m_total);
-  for (const auto& p : actual) {
-    if (p < 0 || p >= ctx.m_total) {
-      cerr << "Incorrect value " << p << " in result permutation: " << actual;
-      exit(EXIT_FAILURE);
-    }
-    if (used[p]) {
-      cerr << "Duplicate value " << p << " in result permutation: " << actual;
-      exit(EXIT_FAILURE);
-    }
-    used[p] = true;
   }
 
   if (FLAGS_has_answer)
-    cerr << "Result score: " << GetScore(ctx.m_size, expected, actual) << endl;
+    cerr << tag << ": result score: " << GetScore(ctx.m_size, expected, actual) << endl;
 
-  cout << actual << endl;
+  return actual;
+}
+
+int main(int argc, char** argv) {
+  gflags::ParseCommandLineFlags(&argc, &argv, /* remove_flags= */ true);
+  ios_base::sync_with_stdio(false);
+
+  vector<string> inputs;
+  for (auto** curr = argv + 1; *curr; ++curr)
+    inputs.push_back(*curr);
+
+  vector<vector<int>> outputs(inputs.size());
+
+  auto solver = [&](int offset) {
+    for (int i = offset; i < inputs.size(); i += FLAGS_num_threads) {
+      ifstream is(inputs[i]);
+      outputs[i] = Solve(is, inputs[i]);
+    }
+  };
+
+  vector<thread> threads;
+  for (int i = 0; i < FLAGS_num_threads; ++i)
+    threads.emplace_back(bind(solver, i));
+
+  for (auto& thread : threads)
+    thread.join();
+
+  for (int i = 0; i < inputs.size(); ++i) {
+    cout << inputs[i] << endl;
+    cout << outputs[i] << endl;
+  }
+
   exit(EXIT_SUCCESS);
 }
