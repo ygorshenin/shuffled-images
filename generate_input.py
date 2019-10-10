@@ -2,7 +2,7 @@
 
 from PIL import Image
 from keras.models import load_model
-from utils import SIZE, get_horizontal_predicts, get_vertical_predicts
+from utils import SIZE, generate_patches, get_horizontal_predicts, get_vertical_predicts
 
 import argparse
 import glob
@@ -10,9 +10,12 @@ import os
 
 
 def generate_input(image, model, delta, patch):
+    print('Generating horizontal predicts...')
     hors = get_horizontal_predicts(image, model, delta, patch)
-    vers = get_vertical_predicts(image, model, delta, patch)
-    return hors, vers
+    print('Generating vertical predicts...')
+    vers = get_horizontal_predicts(image, model, delta, patch)
+    print('Done')
+    return hors, hors
 
 
 def print_1d_array(array, file):
@@ -76,7 +79,7 @@ if __name__ == '__main__':
                                     delta=args.delta,
                                     patch=args.patch)
 
-        with open(file + '.txt', 'w') as f:
+        with open(os.path.join(os.path.dirname(file), name + '.txt'), 'w') as f:
             print(SIZE // args.patch, file=f)
             print_2d_array(hors, file=f)
             print_2d_array(vers, file=f)

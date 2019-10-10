@@ -15,46 +15,36 @@ def generate_patches(image, patch):
             yield image.crop((x, y, x + patch, y + patch))
 
 
-def combine_horizontal(left, right, delta, patch):
-    l = left.crop((patch - delta, 0, patch, patch))
-    r = right.crop((0, 0, delta, patch))
-    im = Image.new('L', (2 * delta, patch))
-    im.paste(l, (0, 0))
-    im.paste(r, (delta, 0))
-    return np.asarray(im) / 255
+def get_predicts(patches, image, model, delta, patch):
+    ls = [np.asarray(p.crop((patch - delta, 0, patch, patch))) for p in patches]
+    rs = [np.asarray(p.crop((0, 0, delta, patch))) for p in patches]
 
-
-def combine_vertical(upper, lower, delta, patch):
-    return combine_horizontal(left=upper.transpose(Image.ROTATE_90),
-                              right=lower.transpose(Image.ROTATE_90),
-                              delta=delta,
-                              patch=patch)
-
-
-def get_predicts(image, model, delta, patch, combine):
-    patches = list(generate_patches(image=image, patch=patch))
-    hors = []
-    for i in range(len(patches)):
-        for j in range(len(patches)):
-            hors.append(combine(patches[i], patches[j], delta, patch))
-    hors = np.array(hors)
+    print('Before square...')
+    hors = [np.hstack([l, r]) for l in ls for r in rs]
+    print('After square...')
+    hors = np.array(hors) / 255
     hors = np.expand_dims(hors, axis=-1)
 
-    scores = model.predict(hors)
+    print('Hors: {}'.format(hors.shape))
+
+    scores = model.predict(hors, batch_size=256)
+    print('Scores: {}'.format(scores.shape))
     return scores.reshape((len(patches), len(patches)))
 
 
 def get_horizontal_predicts(image, model, delta, patch):
-    return get_predicts(image=image,
+    patches = list(generate_patches(image=image, patch=patch))
+    return get_predicts(patches=patches,
+                        image=image,
                         model=model,
                         delta=delta,
-                        patch=patch,
-                        combine=combine_horizontal)
+                        patch=patch)
 
 
 def get_vertical_predicts(image, model, delta, patch):
-    return get_predicts(image=image,
+    patches = [patch.transpose(Image.ROTATE_90) for patch in generate_patches(image=image, patch=patch)]
+    return get_predicts(patches=patches,
+                        image=image,
                         model=model,
                         delta=delta,
-                        patch=patch,
-                        combine=combine_vertical)
+                        patch=patch)
